@@ -1,3 +1,9 @@
+# How to use:
+# name: Configure AWS Credentials
+#  uses: gonzalovazquez/.github/.github/workflows/aws-auth.yml@main
+#   with:
+#    AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+
 name: AWS Authentication
 
 on:
