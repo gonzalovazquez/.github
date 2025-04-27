@@ -1,0 +1,57 @@
+name: Docker ECR Push
+
+on:
+  workflow_call:
+    inputs:
+      ecr_repository:
+        required: true
+        type: string
+      aws_region:
+        required: false
+        type: string
+        default: us-east-1
+      dockerfile_path:
+        required: false
+        type: string
+        default: ./Dockerfile
+      context_path:
+        required: false
+        type: string
+        default: .
+    secrets:
+      AWS_ROLE_ARN:
+        required: true
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+        aws-region: ${{ inputs.aws_region }}
+        role-session-name: GitHubActions
+    
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+    
+    - name: Build, tag, and push image to Amazon ECR
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker build -t $ECR_REGISTRY/${{ inputs.ecr_repository }}:$IMAGE_TAG -f ${{ inputs.dockerfile_path }} ${{ inputs.context_path }}
+        docker push $ECR_REGISTRY/${{ inputs.ecr_repository }}:$IMAGE_TAG
+        docker tag $ECR_REGISTRY/${{ inputs.ecr_repository }}:$IMAGE_TAG $ECR_REGISTRY/${{ inputs.ecr_repository }}:latest
+        docker push $ECR_REGISTRY/${{ inputs.ecr_repository }}:latest
+        docker push $ECR_REGISTRY/${{ inputs.ecr_repository }}:IMAGE_TAG
+
+    - name: Verify pushed images
+      run: |
+        aws ecr describe-images --repository-name $REPOSITORY --image-ids imageTag=$IMAGE_TAG
