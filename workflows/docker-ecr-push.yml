@@ -1,3 +1,12 @@
+# How to use:
+#  build:
+#    uses: your-org/.github/.github/workflows/reusable-docker-ecr-push.yml@main
+#    with:
+#      ecr_repository: my-app
+#      aws_region: us-east-1
+#    secrets:
+#      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+
 name: Docker ECR Push
 
 on:
