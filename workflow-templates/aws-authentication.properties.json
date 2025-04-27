@@ -1,0 +1,13 @@
+{
+  "name": "AWS Authentication Workflow",
+  "description": "Configure AWS credentials using IAM roles for secure authentication",
+  "iconName": "aws-icon",
+  "categories": [
+    "AWS",
+    "Deployment",
+    "Security"
+  ],
+  "filePatterns": [
+    ".*"
+  ]
+}
