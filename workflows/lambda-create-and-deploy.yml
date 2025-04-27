@@ -1,0 +1,90 @@
+# How to use:
+#  deploy:
+#    uses: gonzalovazquez/.github/.github/workflows/reusable-lambda-deploy.yml@main
+#    with:
+#      ecr_repository: my-app
+#      aws_region: us-east-1
+#      lambda_function_name: my-lambda-function
+#      image_tag: ${{ github.sha }}
+#    secrets:
+#      AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+
+name: Lambda Create and Deploy
+
+on:
+  workflow_call:
+    inputs:
+      ecr_repository:
+        required: true
+        type: string
+      aws_region:
+        required: false
+        type: string
+        default: us-east-1
+      lambda_function_name:
+        required: true
+        type: string
+      image_tag:
+        required: false
+        type: string
+        default: ${{ github.sha }}
+    secrets:
+      AWS_ROLE_ARN:
+        required: true
+
+jobs:
+  deploy-lambda:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Configure AWS Credentials
+      uses: gonzalovazquez/.github/.github/workflows/aws-auth.yml@main
+      with:
+        AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+    
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Check if Lambda function exists
+      id: check-lambda
+      run: |
+        if aws lambda get-function --function-name ${{ inputs.lambda_function_name }} 2>/dev/null; then
+          echo "exists=true" >> $GITHUB_OUTPUT
+        else
+          echo "exists=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Create Lambda function
+      if: steps.check-lambda.outputs.exists == 'false'
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ inputs.image_tag }}
+      run: |
+        aws lambda create-function \
+          --function-name ${{ inputs.lambda_function_name }} \
+          --package-type Image \
+          --code ImageUri=$ECR_REGISTRY/${{ inputs.ecr_repository }}:$IMAGE_TAG \
+          --role ${{ secrets.AWS_ROLE_ARN }} \
+          --timeout 30 \
+          --memory-size 256
+    
+    - name: Update Lambda function
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ inputs.image_tag }}
+      run: |
+        aws lambda update-function-code \
+          --function-name ${{ inputs.lambda_function_name }} \
+          --image-uri $ECR_REGISTRY/${{ inputs.ecr_repository }}:$IMAGE_TAG
+    
+    - name: Wait for Lambda update to complete
+      run: |
+        aws lambda wait function-updated \
+          --function-name ${{ inputs.lambda_function_name }}
+    
+    - name: Publish Lambda version
+      run: |
+        aws lambda publish-version \
+          --function-name ${{ inputs.lambda_function_name }} \
+          --description "Deployed from GitHub Actions - SHA: ${{ github.sha }}"
